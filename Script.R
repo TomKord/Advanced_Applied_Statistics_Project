@@ -1,8 +1,12 @@
 #install.packages("gamlss.add")
 #install.packages("gamlss")
+#install.packages("gamlss.dist")
+#install.packages("gamlss.lasso")
 
 library(gamlss)
 library(gamlss.add)
+library(gamlss.dist)
+library(gamlss.lasso)
 
 df <- read.csv("Weather_data.csv")
 
