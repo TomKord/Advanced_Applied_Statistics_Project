@@ -116,5 +116,9 @@ cat("Estimated True Error:   ", final_prediction_error, "\n")
 zaga2_refit <- update(zaga2, data = df)
 
 # Now run the worm plot on the refreshed object
-wp(zaga2_refit, xvar = df$mean_relative_hum)
+wp(zaga2_refit, xvar = df$acc_precip)
 
+# Split the worm plot by 'mean_relative_hum' intervals
+# n.inter = 4 splits the data into 4 ranges of humidity
+wp(zaga2, xvar = df$mean_relative_hum, ylim.worm = 0.5, n.inter = 4, 
+   main = "Worm Plot: Conditional on Humidity")
