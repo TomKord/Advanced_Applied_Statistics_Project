@@ -7,7 +7,7 @@ df$time_num <- as.numeric(df$date)
 df <- subset(df, df$acc_precip < 50) # removed outlier
 #gen.Family("BCT", "zero")
 # gamlss model
-zaga2 <- gamlss(
+zaga1 <- gamlss(
   acc_precip ~ mean_relative_hum +
     mean_temp:mean_relative_hum +
     bright_sunshine + mean_pressure,
@@ -31,20 +31,38 @@ zaga2 <- gamlss(
     I(mean_temp^2) +
     bright_sunshine + mean_pressure,
   
-  sigma.formula = ~ bright_sunshine + mean_pressure,
+  sigma.formula = ~ bright_sunshine + mean_pressure + mean_wind_speed + 
+    I(mean_relative_hum^2) + mean_temp + mean_relative_hum,
   
-  nu.formula = ~ mean_temp +
-    mean_relative_hum + mean_wind_speed +
+  nu.formula = ~ mean_temp + mean_relative_hum + mean_wind_speed + 
     mean_temp:mean_relative_hum + bright_sunshine + mean_pressure,
   
   family = ZAGA,
   #family = ZABCT,
   data = df
 )
-
+#model 3
+zaga2 <- gamlss(
+  # MU: Use the simplified version from zaga2
+  acc_precip ~ mean_relative_hum + I(mean_temp^2) + 
+    bright_sunshine + mean_pressure,
+  
+  # SIGMA: Use the robust version from zaga1 (CRITICAL)
+  sigma.formula = ~ I(mean_relative_hum^2) + mean_temp:mean_relative_hum + 
+    mean_wind_speed + mean_pressure,
+  
+  # NU: Use the version from zaga2 (it seems to have kept the important stuff)
+  nu.formula = ~ mean_temp + mean_relative_hum + mean_wind_speed + 
+    mean_temp:mean_relative_hum + bright_sunshine + mean_pressure,
+  
+  family = ZAGA,
+  data = df
+)
+GAIC(zaga1, zaga2)
+summary(zaga2)
 
 # 1. Setup
-B <- 50  # Number of bootstraps (Use >= 200 for publication, 50 for testing)
+B <- 100  # Number of bootstraps (Use >= 200 for publication, 50 for testing)
 n <- nrow(df)
 original_predictions <- predict(zaga2, type = "response")
 
@@ -134,9 +152,7 @@ zaga2_refit <- update(zaga2, data = df)
 # Now run the worm plot on the refreshed object
 wp(zaga2_refit, xvar = df$mean_relative_hum, , ylim.worm= 1, n.inter=4, main = "Worm Plot: Conditional on Humidity")
 
-#single plot
-wp(zaga2_refit , ylim.worm= 1, main = "Worm Plot")
 # Split the worm plot by 'mean_relative_hum' intervals
 # n.inter = 4 splits the data into 4 ranges of humidity
-wp(zaga2, xvar = df$mean_relative_hum, ylim.worm = 0.5, n.inter = 4, 
+wp(zaga2_refit, xvar = df$mean_relative_hum, ylim.worm = 0.5, n.inter = 4, 
    main = "Worm Plot: Conditional on Humidity")

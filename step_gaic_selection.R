@@ -16,18 +16,21 @@ m1 <- stepGAIC(m_null,
                what = "mu", 
                scope = list(lower = ~1, upper = possible_vars),
                direction = "both",
-               k = log(nrow(df)))
+               k = 2)
 
 m2 <- stepGAIC(m1, 
                what = "sigma", 
                scope = list(lower = ~1, upper = possible_vars),
                direction = "both",
-               k = log(nrow(df)))
+               k = 2)
 
 m3 <- stepGAIC(m2, 
                what = "nu", 
                scope = list(lower = ~1, upper = possible_vars),
                direction = "both",
-               k = log(nrow(df)))
+               k = 2)
 
 summary(m3)
+
+
+# 
