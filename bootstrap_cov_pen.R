@@ -25,6 +25,22 @@ zaga2 <- gamlss(
   #family = ZABCT,
   data = df
 )
+# gamlss 2nd model from stepGAIC
+zaga2 <- gamlss(
+  acc_precip ~ mean_relative_hum +
+    I(mean_temp^2) +
+    bright_sunshine + mean_pressure,
+  
+  sigma.formula = ~ bright_sunshine + mean_pressure,
+  
+  nu.formula = ~ mean_temp +
+    mean_relative_hum + mean_wind_speed +
+    mean_temp:mean_relative_hum + bright_sunshine + mean_pressure,
+  
+  family = ZAGA,
+  #family = ZABCT,
+  data = df
+)
 
 
 # 1. Setup
@@ -116,8 +132,10 @@ cat("Estimated True Error:   ", final_prediction_error, "\n")
 zaga2_refit <- update(zaga2, data = df)
 
 # Now run the worm plot on the refreshed object
-wp(zaga2_refit, xvar = df$acc_precip)
+wp(zaga2_refit, xvar = df$mean_relative_hum, , ylim.worm= 1, n.inter=4, main = "Worm Plot: Conditional on Humidity")
 
+#single plot
+wp(zaga2_refit , ylim.worm= 1, main = "Worm Plot")
 # Split the worm plot by 'mean_relative_hum' intervals
 # n.inter = 4 splits the data into 4 ranges of humidity
 wp(zaga2, xvar = df$mean_relative_hum, ylim.worm = 0.5, n.inter = 4, 
