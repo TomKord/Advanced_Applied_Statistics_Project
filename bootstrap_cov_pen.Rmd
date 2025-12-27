@@ -1,5 +1,0 @@
----
-title: "bootstrap_cov_pen"
-output: html_document
----
-
