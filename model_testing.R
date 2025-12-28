@@ -6,8 +6,10 @@ df$date <- as.Date(df$date)
 df$time_num <- as.numeric(df$date)
 df$time_index <- seq_len(nrow(df))
 
+df <- subset(df, df$acc_precip < 15)
+
 # Find the first row index where the Date is "2023-01-01"
-split_idx <- which(df$date == "2023-01-01")[1]
+split_idx <- which(df$date == "2023-01-02")[1]
 
 # Then split using the same logic as above
 train_df <- df[seq_len(split_idx - 1), ]
@@ -62,3 +64,24 @@ ggplot(test_df, aes(x = date)) +
        y = "Accumulated Precipitation", x = "Date") +
   scale_color_manual(values = c("Actual" = "black", "Predicted" = "red")) +
   theme_minimal()
+
+# Calculate Randomized Quantile Residuals for the TEST data
+# Note: 'predict' can return residuals if data is supplied correctly, 
+# but doing it manually ensures it uses test data parameters.
+
+# 1. Get parameters for test data
+mu_test  <- predict(zaga2, newdata = test_df, what = "mu", type = "response")
+sigma_test <- predict(zaga2, newdata = test_df, what = "sigma", type = "response")
+nu_test  <- predict(zaga2, newdata = test_df, what = "nu", type = "response")
+
+# 2. Calculate residuals manually using the pZAGA function
+# This converts your actual y values into Z-scores based on the model
+test_residuals <- qnorm(pZAGA(test_df$acc_precip, 
+                              mu = mu_test, 
+                              sigma = sigma_test, 
+                              nu = nu_test))
+
+# 3. Plot Q-Q plot
+qqnorm(test_residuals)
+qqline(test_residuals, col = "red")
+title("Q-Q Plot of Test Data Residuals")
