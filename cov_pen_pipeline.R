@@ -5,7 +5,7 @@ df <- read.csv("Weather_data.csv")
 df$date <- as.Date(df$date)
 df$time_num <- as.numeric(df$date)
 df$time_index <- seq_len(nrow(df))
-df <- subset(df, df$acc_precip < 50)
+df <- subset(df, df$acc_precip < 15)
 
 #latest stepGAIC model
 zaga2 <- gamlss(
@@ -29,7 +29,7 @@ zaga2 <- gamlss(
 # 1. Setup
 B <- 100  # Number of bootstraps (Use >= 200 for publication, 50 for testing)
 n <- nrow(df)
-original_predictions <- predict(zaga2, type = "response")
+#original_predictions <- predict(zaga2, type = "response")
 
 # Matrices to store results
 # We store the simulated y values and the corresponding predicted values
@@ -101,6 +101,8 @@ total_optimism <- 2 * sum(cov_penalties)
 
 # 4. Final Calculation
 # Calculate Training Error (Squared Error for this example)
+# Formula: Probability of Rain * Average Amount
+original_predictions <- (1- nu_fit)*mu_fit
 training_se <- sum((df$acc_precip - original_predictions)^2)
 
 # Estimate of True Prediction Error
@@ -118,3 +120,4 @@ zaga2_refit <- update(zaga2, data = df)
 
 # Now run the worm plot on the refreshed object
 wp(zaga2_refit, xvar = df$mean_relative_hum, , ylim.worm= 1, n.inter=4, main = "Worm Plot: Conditional on Humidity")
+
