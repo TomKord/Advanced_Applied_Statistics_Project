@@ -9,7 +9,7 @@ df <- read.csv("Weather_data.csv")
 df$date <- as.Date(df$date)
 df$time_num <- as.numeric(df$date)
 
-df <- subset(df, df$acc_precip < 50) # removed outlier
+df <- subset(df, df$acc_precip < 15) # removed outlier
 
 plot(df$date, df$acc_precip)
 
