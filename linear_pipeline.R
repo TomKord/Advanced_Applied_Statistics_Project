@@ -51,7 +51,7 @@ cat("\n--- Model Evaluation Results ---\n")
 cat("RMSE: ", round(rmse_score, 4), " cm\n")
 cat("MAE:  ", round(mae_score, 4), " cm\n")
 cat("Bias: ", round(bias_score, 4), " cm\n")
-
+AIC(final_lm)
 library(ggplot2)
 
 ggplot(test_df, aes(x = date)) +
@@ -150,3 +150,16 @@ plot(final_lm)
 
 # Reset grid to normal
 par(mfrow = c(1, 1))
+AIC(final_lm)
+
+# reformat as normally distributed gamlss
+lm_as_gamlss <- gamlss(formula(final_lm_full), 
+                       data = df, 
+                       family = NO)
+
+wp(lm_as_gamlss, 
+   xvar = df$mean_relative_hum, 
+   n.inter = 4, 
+   ylim.worm = 1,  # Linear models often have huge errors, so we increase the y-limits
+   main = "Worm Plot: Linear Model (Gaussian) on Rainfall")
+

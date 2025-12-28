@@ -67,7 +67,7 @@ test_mae <- mean(abs(test_df$acc_precip - test_df$predicted_rain))
 
 cat("Test RMSE:", round(test_rmse, 3), "\n")
 cat("Test MAE: ", round(test_mae, 3), "\n")
-
+AIC(m3)
 
 library(ggplot2)
 
