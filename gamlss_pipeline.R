@@ -1,38 +1,112 @@
 library(gamlss)
+###### StepGAIC parameter selection 
+#data
 df <- read.csv("Weather_data.csv")
-
 df$date <- as.Date(df$date)
 df$time_num <- as.numeric(df$date)
+df$time_index <- seq_len(nrow(df))
 
-df <- subset(df, df$acc_precip < 50) # removed outlier
-#gen.Family("BCT", "zero")
-# gamlss model
-zaga1 <- gamlss(
-  acc_precip ~ mean_relative_hum +
-    mean_temp:mean_relative_hum +
-    bright_sunshine + mean_pressure,
-  
-  sigma.formula = ~ I(mean_relative_hum^2) +
-    mean_temp:mean_relative_hum +
-    mean_wind_speed + mean_pressure,
-  
-  nu.formula = ~ I(mean_temp^2) +
-    mean_relative_hum +
-    mean_temp:mean_relative_hum +
-    mean_wind_speed + bright_sunshine + mean_pressure,
-  
-  family = ZAGA,
-  #family = ZABCT,
-  data = df
-)
-# gamlss 2nd model from stepGAIC
+df <- subset(df, df$acc_precip < 15)
+
+# Find the first row index where the Date is "2023-01-01"
+split_idx <- which(df$date == "2023-01-02")[1]
+
+# Then split using the same logic as above
+train_df <- df[seq_len(split_idx - 1), ]
+test_df  <- df[split_idx:nrow(df), ]
+
+
+possible_vars <- ~ mean_temp + mean_relative_hum + mean_pressure + 
+  bright_sunshine + mean_wind_speed + 
+  I(mean_temp^2) + I(mean_relative_hum^2) + 
+  mean_temp:mean_relative_hum + time_index
+
+m_null <- gamlss(acc_precip ~ 1, 
+                 data = train_df, 
+                 family = ZAGA)
+
+m1 <- stepGAIC(m_null, 
+               what = "mu", 
+               scope = list(lower = ~1, upper = possible_vars),
+               direction = "both",
+               k = 2)
+
+m2 <- stepGAIC(m1, 
+               what = "sigma", 
+               scope = list(lower = ~1, upper = possible_vars),
+               direction = "both",
+               k = 2)
+
+m3 <- stepGAIC(m2, 
+               what = "nu", 
+               scope = list(lower = ~1, upper = possible_vars),
+               direction = "both",
+               k = 2)
+
+summary(m3)
+
+
+######### Model testing using train/test split
+
+
+#latest stepGAIC model
 zaga2 <- gamlss(
-  acc_precip ~ mean_relative_hum +
+  acc_precip ~ I(mean_relative_hum^2) +
     I(mean_temp^2) +
-    bright_sunshine + mean_pressure,
+    bright_sunshine + mean_pressure+ time_index,
   
   sigma.formula = ~ bright_sunshine + mean_pressure + mean_wind_speed + 
-    I(mean_relative_hum^2) + mean_temp + mean_relative_hum,
+    I(mean_relative_hum^2) + mean_temp + mean_relative_hum + time_index,
+  
+  nu.formula = ~ mean_temp + mean_relative_hum + mean_wind_speed + 
+    mean_temp:mean_relative_hum + bright_sunshine + mean_pressure,
+  
+  family = ZAGA,
+  data = train_df
+)
+
+# 1. Predict the average rain amount (conditional on it raining)
+pred_mu <- predict(zaga2, newdata = test_df, what = "mu", type = "response")
+
+# 2. Predict the probability of ZERO rain
+pred_nu <- predict(zaga2, newdata = test_df, what = "nu", type = "response")
+
+# 3. Calculate the Expected Value (The Combined Prediction)
+# Formula: (Probability of Rain) * (Average Rain Amount)
+test_df$predicted_rain <- (1 - pred_nu) * pred_mu
+
+
+# Calculate RMSE (Root Mean Squared Error)
+test_rmse <- sqrt(mean((test_df$acc_precip - test_df$predicted_rain)^2))
+
+# Calculate MAE (Mean Absolute Error)
+test_mae <- mean(abs(test_df$acc_precip - test_df$predicted_rain))
+
+cat("Test RMSE:", round(test_rmse, 3), "\n")
+cat("Test MAE: ", round(test_mae, 3), "\n")
+
+
+library(ggplot2)
+
+ggplot(test_df, aes(x = date)) +
+  # Actual Rainfall (Black Bars/Lines)
+  geom_line(aes(y = acc_precip, color = "Actual")) +
+  # Predicted Rainfall (Red Dashed Line)
+  geom_line(aes(y = predicted_rain, color = "Predicted"), linetype = "dashed") +
+  labs(title = "Model Test: Actual vs Predicted Rainfall",
+       y = "Accumulated Precipitation", x = "Date") +
+  scale_color_manual(values = c("Actual" = "black", "Predicted" = "red")) +
+  theme_minimal()
+
+######### Covariance penalty approach
+#latest stepGAIC model
+zaga2 <- gamlss(
+  acc_precip ~ I(mean_relative_hum^2) +
+    I(mean_temp^2) +
+    bright_sunshine + mean_pressure+ time_index,
+  
+  sigma.formula = ~ bright_sunshine + mean_pressure + mean_wind_speed + 
+    I(mean_relative_hum^2) + mean_temp + mean_relative_hum + time_index,
   
   nu.formula = ~ mean_temp + mean_relative_hum + mean_wind_speed + 
     mean_temp:mean_relative_hum + bright_sunshine + mean_pressure,
@@ -41,30 +115,13 @@ zaga2 <- gamlss(
   #family = ZABCT,
   data = df
 )
-#model 3
-zaga2 <- gamlss(
-  # MU: Use the simplified version from zaga2
-  acc_precip ~ mean_relative_hum + I(mean_temp^2) + 
-    bright_sunshine + mean_pressure,
-  
-  # SIGMA: Use the robust version from zaga1 (CRITICAL)
-  sigma.formula = ~ I(mean_relative_hum^2) + mean_temp:mean_relative_hum + 
-    mean_wind_speed + mean_pressure,
-  
-  # NU: Use the version from zaga2 (it seems to have kept the important stuff)
-  nu.formula = ~ mean_temp + mean_relative_hum + mean_wind_speed + 
-    mean_temp:mean_relative_hum + bright_sunshine + mean_pressure,
-  
-  family = ZAGA,
-  data = df
-)
-GAIC(zaga1, zaga2)
-summary(zaga2)
+
+#boostrap
 
 # 1. Setup
 B <- 100  # Number of bootstraps (Use >= 200 for publication, 50 for testing)
 n <- nrow(df)
-original_predictions <- predict(zaga2, type = "response")
+#original_predictions <- predict(zaga2, type = "response")
 
 # Matrices to store results
 # We store the simulated y values and the corresponding predicted values
@@ -136,6 +193,8 @@ total_optimism <- 2 * sum(cov_penalties)
 
 # 4. Final Calculation
 # Calculate Training Error (Squared Error for this example)
+# Formula: Probability of Rain * Average Amount
+original_predictions <- (1- nu_fit)*mu_fit
 training_se <- sum((df$acc_precip - original_predictions)^2)
 
 # Estimate of True Prediction Error
@@ -151,8 +210,3 @@ zaga2_refit <- update(zaga2, data = df)
 
 # Now run the worm plot on the refreshed object
 wp(zaga2_refit, xvar = df$mean_relative_hum, , ylim.worm= 1, n.inter=4, main = "Worm Plot: Conditional on Humidity")
-
-# Split the worm plot by 'mean_relative_hum' intervals
-# n.inter = 4 splits the data into 4 ranges of humidity
-wp(zaga2_refit, xvar = df$mean_relative_hum, ylim.worm = 0.5, n.inter = 4, 
-   main = "Worm Plot: Conditional on Humidity")
