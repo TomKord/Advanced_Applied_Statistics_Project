@@ -12,6 +12,10 @@ possible_vars <- ~ mean_temp + mean_relative_hum + mean_pressure +
   I(mean_temp^2) + I(mean_relative_hum^2) + 
   mean_temp:mean_relative_hum
 
+m_null <- gamlss(acc_precip ~ 1, 
+                 data = df, 
+                 family = ZAGA)
+
 m1 <- stepGAIC(m_null, 
                what = "mu", 
                scope = list(lower = ~1, upper = possible_vars),
