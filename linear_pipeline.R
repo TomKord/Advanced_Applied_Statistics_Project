@@ -30,15 +30,6 @@ predictions <- predict(final_lm, newdata = test_df, type = "response")
 # Add raw predictions to the test dataframe
 test_df$pred_lm <- predictions
 
-# Physically, rain cannot be negative, so we must clamp these to 0.
-test_df$pred_lm_corrected <- ifelse(test_df$pred_lm < 0, 0, test_df$pred_lm)
-
-# Check how many impossible predictions we fixed
-#n_neg <- sum(test_df$pred_lm < 0)
-#cat(sprintf("Note: The linear model predicted negative rain for %d days. These were clamped to 0.\n", n_neg))
-
-# Calculate the errors (Residuals) using the CORRECTED predictions
-#errors <- test_df$pred_lm_corrected - test_df$acc_precip
 errors <- test_df$pred_lm - test_df$acc_precip
 # A. RMSE (Root Mean Square Error)
 # Penalizes large errors heavily (good for spotting if you missed big storms)
@@ -61,3 +52,101 @@ cat("RMSE: ", round(rmse_score, 4), " cm\n")
 cat("MAE:  ", round(mae_score, 4), " cm\n")
 cat("Bias: ", round(bias_score, 4), " cm\n")
 
+library(ggplot2)
+
+ggplot(test_df, aes(x = date)) +
+  # Actual Rainfall (Black Bars/Lines)
+  geom_line(aes(y = acc_precip, color = "Actual")) +
+  # Predicted Rainfall (Red Dashed Line)
+  geom_line(aes(y = predictions, color = "Predicted"), linetype = "dashed") +
+  labs(title = "Model Test: Actual vs Predicted Rainfall",
+       y = "Accumulated Precipitation", x = "Date") +
+  scale_color_manual(values = c("Actual" = "black", "Predicted" = "red")) +
+  theme_minimal()
+
+#Covariance penalty
+
+# A. Refit on FULL data
+# As per your GAMLSS example, we calculate the penalty on the full dataset structure
+final_lm_full <- update(final_lm, data = df)
+
+# B. Setup Bootstrap
+B <- 100       # Number of bootstraps
+n <- nrow(df)
+
+# Matrices to store results
+sim_y_mat <- matrix(NA, nrow = n, ncol = B)
+new_y_hat_mat <- matrix(NA, nrow = n, ncol = B)
+
+# Extract fitted parameters from the Linear Model
+# 1. Fitted Means (mu)
+mu_fit <- predict(final_lm_full, type = "response")
+# 2. Residual Standard Error (sigma) - assumed constant in LM
+sigma_fit <- summary(final_lm_full)$sigma
+
+set.seed(123)
+cat("Running Bootstrap for Linear Model Covariance Penalty...\n")
+
+for(i in 1:B) {
+  # --- 1. Generate Synthetic Data ---
+  # Since lm() assumes a Normal distribution, we simulate using rnorm.
+  # Note: This will generate negative rain values. This is expected for LM.
+  y_sim <- rnorm(n, mean = mu_fit, sd = sigma_fit)
+  
+  # Save the simulated y
+  sim_y_mat[, i] <- y_sim
+  
+  # --- 2. Refit the Model ---
+  df_sim <- df
+  df_sim$acc_precip <- y_sim
+  
+  # Update the model with the new synthetic target variable
+  refit_model <- update(final_lm_full, data = df_sim)
+  
+  # --- 3. Predict ---
+  new_y_hat_mat[, i] <- predict(refit_model, type = "response")
+  
+  if(i %% 10 == 0) cat(i, "of", B, "complete...\n")
+}
+
+# ==========================================
+# 3. Calculate Penalty & Final Error
+# ==========================================
+cov_penalties <- numeric(n)
+
+for(i in 1:n) {
+  y_vec <- sim_y_mat[i, ]
+  y_hat_vec <- new_y_hat_mat[i, ]
+  
+  # Covariance between the simulated noise and the model's reaction to it
+cov_penalties[i] <- cov(y_vec, y_hat_vec)
+}
+
+# Total Optimism (2 * Sum of Covariances)
+total_optimism <- 2 * sum(cov_penalties)
+
+# Calculate Training Error (SSE) on the original data
+# We use the raw predictions (even if negative) to be mathematically consistent with LM
+original_predictions <- predict(final_lm_full, type = "response")
+training_se <- sum((df$acc_precip - original_predictions)^2)
+
+final_prediction_error <- training_se + total_optimism
+
+# ==========================================
+# 4. Output Results
+# ==========================================
+cat("------------------------------------------------\n")
+cat("Model Type:             Linear Model (Gaussian)\n")
+cat("Training Error (SSE):   ", round(training_se, 4), "\n")
+cat("Covariance Penalty (Op):", round(total_optimism, 4), "\n")
+cat("Estimated True Error:   ", round(final_prediction_error, 4), "\n")
+cat("------------------------------------------------\n")
+
+# Set up a 2x2 grid to see all plots at once
+par(mfrow = c(2, 2))
+
+# This command automatically generates the 4 standard diagnostic plots
+plot(final_lm)
+
+# Reset grid to normal
+par(mfrow = c(1, 1))

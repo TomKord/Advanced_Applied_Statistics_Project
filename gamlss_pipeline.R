@@ -48,28 +48,11 @@ summary(m3)
 
 ######### Model testing using train/test split
 
-
-#latest stepGAIC model
-zaga2 <- gamlss(
-  acc_precip ~ I(mean_relative_hum^2) +
-    I(mean_temp^2) +
-    bright_sunshine + mean_pressure+ time_index,
-  
-  sigma.formula = ~ bright_sunshine + mean_pressure + mean_wind_speed + 
-    I(mean_relative_hum^2) + mean_temp + mean_relative_hum + time_index,
-  
-  nu.formula = ~ mean_temp + mean_relative_hum + mean_wind_speed + 
-    mean_temp:mean_relative_hum + bright_sunshine + mean_pressure,
-  
-  family = ZAGA,
-  data = train_df
-)
-
 # 1. Predict the average rain amount (conditional on it raining)
-pred_mu <- predict(zaga2, newdata = test_df, what = "mu", type = "response")
+pred_mu <- predict(m3, newdata = test_df, what = "mu", type = "response")
 
 # 2. Predict the probability of ZERO rain
-pred_nu <- predict(zaga2, newdata = test_df, what = "nu", type = "response")
+pred_nu <- predict(m3, newdata = test_df, what = "nu", type = "response")
 
 # 3. Calculate the Expected Value (The Combined Prediction)
 # Formula: (Probability of Rain) * (Average Rain Amount)
@@ -99,29 +82,14 @@ ggplot(test_df, aes(x = date)) +
   theme_minimal()
 
 ######### Covariance penalty approach
-#latest stepGAIC model
-zaga2 <- gamlss(
-  acc_precip ~ I(mean_relative_hum^2) +
-    I(mean_temp^2) +
-    bright_sunshine + mean_pressure+ time_index,
-  
-  sigma.formula = ~ bright_sunshine + mean_pressure + mean_wind_speed + 
-    I(mean_relative_hum^2) + mean_temp + mean_relative_hum + time_index,
-  
-  nu.formula = ~ mean_temp + mean_relative_hum + mean_wind_speed + 
-    mean_temp:mean_relative_hum + bright_sunshine + mean_pressure,
-  
-  family = ZAGA,
-  #family = ZABCT,
-  data = df
-)
-
+#refit model on full data for cov pen approach
+m3 <- update(m3, data = df)
 #boostrap
 
 # 1. Setup
 B <- 100  # Number of bootstraps (Use >= 200 for publication, 50 for testing)
 n <- nrow(df)
-#original_predictions <- predict(zaga2, type = "response")
+#original_predictions <- predict(m3, type = "response")
 
 # Matrices to store results
 # We store the simulated y values and the corresponding predicted values
@@ -129,9 +97,9 @@ sim_y_mat <- matrix(NA, nrow = n, ncol = B)
 new_y_hat_mat <- matrix(NA, nrow = n, ncol = B)
 
 # Extract fitted parameters to simulate from
-mu_fit <- predict(zaga2, what="mu", type="response")
-sigma_fit <- predict(zaga2, what="sigma", type="response")
-nu_fit <- predict(zaga2, what="nu", type="response")
+mu_fit <- predict(m3, what="mu", type="response")
+sigma_fit <- predict(m3, what="sigma", type="response")
+nu_fit <- predict(m3, what="nu", type="response")
 
 # 2. Bootstrap Loop
 set.seed(123)
@@ -154,7 +122,7 @@ for(i in 1:B) {
   
   # Refit (suppressing trace for cleaner output)
   # We use update() to keep the exact same formula structure
-  refit_model <- try(update(zaga2, data = df_sim, trace = FALSE), silent = TRUE)
+  refit_model <- try(update(m3, data = df_sim, trace = FALSE), silent = TRUE)
   
   if(!inherits(refit_model, "try-error")) {
     # C. Predict on the original x values using the NEW fitted model
@@ -206,7 +174,8 @@ cat("Covariance Penalty (Op):", total_optimism, "\n")
 cat("Estimated True Error:   ", final_prediction_error, "\n")
 
 # Simple Worm Plot
-zaga2_refit <- update(zaga2, data = df)
+m3_refit <- update(m3, data = df)
 
 # Now run the worm plot on the refreshed object
-wp(zaga2_refit, xvar = df$mean_relative_hum, , ylim.worm= 1, n.inter=4, main = "Worm Plot: Conditional on Humidity")
+wp(m3_refit, xvar = df$mean_relative_hum, , ylim.worm= 0.5, n.inter=4, main = "Worm Plot: Conditional on Humidity")
+
