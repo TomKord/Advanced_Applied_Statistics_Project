@@ -17,18 +17,17 @@ test_df  <- df[split_idx:nrow(df), ]
 
 #latest stepGAIC model
 zaga2 <- gamlss(
-  acc_precip ~ mean_relative_hum +
+  acc_precip ~ I(mean_relative_hum^2) +
     I(mean_temp^2) +
-    bright_sunshine + mean_pressure,
+    bright_sunshine + mean_pressure+ time_index,
   
-  sigma.formula = ~ mean_pressure + mean_wind_speed + 
+  sigma.formula = ~ bright_sunshine + mean_pressure + mean_wind_speed + 
     I(mean_relative_hum^2) + mean_temp + mean_relative_hum + time_index,
   
   nu.formula = ~ mean_temp + mean_relative_hum + mean_wind_speed + 
     mean_temp:mean_relative_hum + bright_sunshine + mean_pressure,
   
   family = ZAGA,
-  #family = ZABCT,
   data = train_df
 )
 
@@ -65,23 +64,3 @@ ggplot(test_df, aes(x = date)) +
   scale_color_manual(values = c("Actual" = "black", "Predicted" = "red")) +
   theme_minimal()
 
-# Calculate Randomized Quantile Residuals for the TEST data
-# Note: 'predict' can return residuals if data is supplied correctly, 
-# but doing it manually ensures it uses test data parameters.
-
-# 1. Get parameters for test data
-mu_test  <- predict(zaga2, newdata = test_df, what = "mu", type = "response")
-sigma_test <- predict(zaga2, newdata = test_df, what = "sigma", type = "response")
-nu_test  <- predict(zaga2, newdata = test_df, what = "nu", type = "response")
-
-# 2. Calculate residuals manually using the pZAGA function
-# This converts your actual y values into Z-scores based on the model
-test_residuals <- qnorm(pZAGA(test_df$acc_precip, 
-                              mu = mu_test, 
-                              sigma = sigma_test, 
-                              nu = nu_test))
-
-# 3. Plot Q-Q plot
-qqnorm(test_residuals)
-qqline(test_residuals, col = "red")
-title("Q-Q Plot of Test Data Residuals")
