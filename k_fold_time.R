@@ -59,7 +59,7 @@ for (k in 1:K) {
   
   # Linear Model Selection
   lm_init <- gamlss(acc_precip ~ 1, sigma.formula = ~1, data = train_df, family = NO)
-  lm_cv <- stepGAIC(m_null, what = "mu", scope = list(lower = ~1, upper = possible_vars), direction = "both", k = 2, trace = FALSE)
+  lm_cv <- stepGAIC(lm_init, what = "mu", scope = list(lower = ~1, upper = possible_vars), direction = "both", k = 2, trace = FALSE)
   
   # ------------------------------------------------------------
   # Evaluation

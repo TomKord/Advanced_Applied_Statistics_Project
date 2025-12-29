@@ -15,14 +15,18 @@ split_idx <- which(df$date == "2023-01-02")[1]
 train_df <- df[seq_len(split_idx - 1), ]
 test_df  <- df[split_idx:nrow(df), ]
 
-full_formula <- acc_precip ~ mean_temp + mean_relative_hum + mean_pressure + 
+#full_formula <- acc_precip ~ mean_temp + mean_relative_hum + mean_pressure + bright_sunshine + mean_wind_speed + I(mean_temp^2) + I(mean_relative_hum^2) + mean_temp:mean_relative_hum + time_index
+
+possible_vars <- ~ mean_temp + mean_relative_hum + mean_pressure + 
   bright_sunshine + mean_wind_speed + 
   I(mean_temp^2) + I(mean_relative_hum^2) + 
   mean_temp:mean_relative_hum + time_index
 
 # start with full the remove parameters
-lm_full <- lm(full_formula, data = train_df)
-final_lm <- step(lm_full, direction = "both")
+#lm_full <- lm(full_formula, data = train_df)
+#final_lm <- step(lm_full, direction = "both")
+lm_init <- gamlss(acc_precip ~ 1, sigma.formula = ~1, data = train_df, family = NO)
+final_lm <- stepGAIC(lm_init, what = "mu", scope = list(lower = ~1, upper = possible_vars), direction = "both", k = 2, trace = FALSE)
 
 summary(final_lm)
 
