@@ -97,6 +97,8 @@ for (k in 1:K) {
 
 print(cv_res)
 
+######## IGNORE JUST FOR MODEL TESTING  ##########
+
 # Define a threshold (anything below 0.05mm is effectively dry)
 threshold <- 0.01
 
@@ -171,7 +173,7 @@ print(cv_res[, c("fold", "rmse_gamlss", "rmse_lm", "sd_actual", "nRMSE_gamlss", 
 
 
 
-# 1. Define the final fold indices (Fold 9 is k=9)
+# 1. Define the final fold indices
 k_final <- 8 
 train_end_final  <- k_final * fold_size
 test_start_final <- train_end_final + 1
@@ -205,4 +207,121 @@ lines(y_hat_g_zeroed, col = "blue", lwd = 1.5)
 lines(y_hat_l_final, col = "red", lty = 2)
 legend("topright", legend=c("Actual", "GAMLSS (Classified)", "Linear Model"),
        col=c("black", "blue", "red"), lty=c(1,1,2), lwd=2)
+
+# 1. Define metrics (in case they were cleared from memory)
+rmse_fn <- function(y, yhat) sqrt(mean((y - yhat)^2, na.rm = TRUE))
+mae_fn  <- function(y, yhat) mean(abs(y - yhat), na.rm = TRUE)
+
+# 2. Re-calculate the two prediction types
+# Raw: The full expected value (1-nu)*mu
+y_hat_g_raw <- (1 - pa_final$nu) * pa_final$mu
+
+# Hybrid: 0 if prob of zero > 0.5, else the full expected value
+y_hat_g_hybrid <- ifelse(pa_final$nu > 0.5, 0, y_hat_g_raw)
+
+# 3. Calculate Scores
+actuals <- test_df_final$acc_precip
+
+results_comp <- data.frame(
+  Metric = c("RMSE", "MAE"),
+  Raw_GAMLSS = c(rmse_fn(actuals, y_hat_g_raw), mae_fn(actuals, y_hat_g_raw)),
+  Hybrid_GAMLSS = c(rmse_fn(actuals, y_hat_g_hybrid), mae_fn(actuals, y_hat_g_hybrid))
+)
+
+# 4. Print Comparison
+print(results_comp)
+
+# 5. Calculate "Hit Rate" for Dry Days (Occurrence Accuracy)
+# Actual zeros vs predicted zeros
+actual_zeros <- actuals == 0
+predicted_zeros_hybrid <- y_hat_g_hybrid == 0
+
+hit_rate <- mean(actual_zeros == predicted_zeros_hybrid)
+cat("\nDry Day Prediction Hit Rate (Hybrid):", round(hit_rate * 100, 2), "%\n")
+
+## Hit rate for dry days becomes 70% from 28% !!!!!!!!!!!!!!!
+
+total_actual <- sum(test_df_final$acc_precip)
+total_gamlss <- sum(y_hat_g_hybrid)
+total_lm     <- sum(y_hat_l_final)
+
+cat("Actual Total Rain:", total_actual, "\n")
+cat("GAMLSS Predicted Total:", total_gamlss, "\n")
+cat("LM Predicted Total:", total_lm, "\n")
+
+cat("Actual Max Rain:", max(test_df_final$acc_precip), "\n")
+cat("GAMLSS Max Prediction:", max(y_hat_g_hybrid), "\n")
+cat("LM Max Prediction:", max(y_hat_l_final), "\n")
+
+# Extract Sigma for the test set
+sigma_values <- pa_final$sigma
+
+# Summary of sigma
+summary(sigma_values)
+
+# Find which day had the highest predicted volatility (extreme sigma)
+max_sigma_idx <- which.max(sigma_values)
+cat("Highest predicted Sigma:", max(sigma_values), "on day", max_sigma_idx, "\n")
+
+# 1. Calculate the 95th Percentile (The "High End" Risk)
+# We use the qZAGA function which gives the quantile for the ZAGA distribution
+upper_95 <- qZAGA(0.95, mu = pa_final$mu, sigma = pa_final$sigma, nu = pa_final$nu)
+
+# 2. Create the Plot
+plot(test_df_final$acc_precip, type = "n", # "n" creates the frame without plotting points yet
+     main = "GAMLSS Risk Assessment (Fold 9)",
+     ylab = "Precipitation (mm)", xlab = "Days in Fold",
+     ylim = c(0, max(max(test_df_final$acc_precip), max(upper_95))))
+
+# 3. Add the 95% Uncertainty Ribbon
+# This represents the area between 0 and the 95th percentile
+polygon(c(1:length(upper_95), rev(1:length(upper_95))),
+        c(upper_95, rep(0, length(upper_95))),
+        col = rgb(0.1, 0.4, 0.8, 0.2), border = NA)
+
+# 4. Add the Observed Rain (The "Truth")
+lines(test_df_final$acc_precip, col = "black", lwd = 2)
+
+# 5. Add the Hybrid Mean Prediction (The "Guess")
+lines(y_hat_g_hybrid, col = "blue", lwd = 1.5)
+
+legend("topright", 
+       legend = c("Observed Rain", "Mean Prediction", "95% Prediction Interval"),
+       col = c("black", "blue", rgb(0.1, 0.4, 0.8, 0.2)), 
+       lty = c(1, 1, 1), lwd = c(2, 1.5, 10))
+
+# 1. Calculate the Coverage
+# Was the actual rain less than or equal to the model's 95th percentile?
+covered <- test_df_final$acc_precip <= upper_95
+
+# 2. Calculate the Coverage Probability
+coverage_rate <- mean(covered) * 100
+
+# 3. Calculate the "Miss" magnitude
+# When the model was wrong, by how much did the rain exceed the 95th percentile?
+misses <- test_df_final$acc_precip[test_df_final$acc_precip > upper_95] - upper_95[test_df_final$acc_precip > upper_95]
+
+cat("--- GAMLSS Probabilistic Scorecard ---\n")
+cat("Coverage Probability (Target 95%):", round(coverage_rate, 2), "%\n")
+cat("Number of days rain exceeded 'Extreme' threshold:", sum(!covered), "\n")
+if(length(misses) > 0) {
+  cat("Average exceedance on 'surprise' days:", round(mean(misses), 3), "mm\n")
+}
+# Set up a 1x2 plotting area
+par(mfrow = c(1, 2))
+
+# 1. Worm Plot for GAMLSS (zaga_final)
+# The wp function is native to gamlss. 
+# It checks if the ZAGA distribution correctly handles the skewness and kurtosis.
+wp(zaga_final,ylim.all = 0.8, main = "Worm Plot: GAMLSS (ZAGA)")
+
+# 2. Worm Plot for Linear Model (lm_final)
+# Standard lm objects don't have a native wp method, 
+# so we create a dummy gamlss object with a Normal (NO) distribution 
+# using the LM's formula to visualize its residuals properly.
+lm_as_gamlss <- gamlss(formula(lm_final), data = train_df_final, family = NO, trace = FALSE)
+wp(lm_as_gamlss,ylim.all = 0.8, main = "Worm Plot: Linear Model (Normal)")
+
+# Reset plotting layout
+par(mfrow = c(1, 1))
 
