@@ -82,11 +82,12 @@ n <- nrow(df)
 sim_y_mat <- matrix(NA, nrow = n, ncol = B)
 new_y_hat_mat <- matrix(NA, nrow = n, ncol = B)
 
-# Extract fitted parameters from the Linear Model
+# Extract fitted parameters from the Linear Model (gamlss)
 # 1. Fitted Means (mu)
 mu_fit <- predict(final_lm_full, type = "response")
 # 2. Residual Standard Error (sigma) - assumed constant in LM
-sigma_fit <- summary(final_lm_full)$sigma
+sigma_fit <- fitted(final_lm_full, what = "sigma")
+
 
 set.seed(123)
 cat("Running Bootstrap for Linear Model Covariance Penalty...\n")
@@ -156,12 +157,9 @@ plot(final_lm)
 par(mfrow = c(1, 1))
 AIC(final_lm)
 
-# reformat as normally distributed gamlss
-lm_as_gamlss <- gamlss(formula(final_lm_full), 
-                       data = df, 
-                       family = NO)
+#Wormplot
 
-wp(lm_as_gamlss, 
+wp(final_lm_full, 
    xvar = df$mean_relative_hum, 
    n.inter = 4, 
    ylim.worm = 1,  # Linear models often have huge errors, so we increase the y-limits
