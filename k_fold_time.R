@@ -211,3 +211,47 @@ lines(y_hat_l_final, col = "red", lty = 2)
 legend("topright", legend=c("Actual", "GAMLSS (Classified)", "Linear Model"),
        col=c("black", "blue", "red"), lty=c(1,1,2), lwd=2)
 
+# 1. Define metrics (in case they were cleared from memory)
+rmse_fn <- function(y, yhat) sqrt(mean((y - yhat)^2, na.rm = TRUE))
+mae_fn  <- function(y, yhat) mean(abs(y - yhat), na.rm = TRUE)
+
+# 2. Re-calculate the two prediction types
+# Raw: The full expected value (1-nu)*mu
+y_hat_g_raw <- (1 - pa_final$nu) * pa_final$mu
+
+# Hybrid: 0 if prob of zero > 0.5, else the full expected value
+y_hat_g_hybrid <- ifelse(pa_final$nu > 0.5, 0, y_hat_g_raw)
+
+# 3. Calculate Scores
+actuals <- test_df_final$acc_precip
+
+results_comp <- data.frame(
+  Metric = c("RMSE", "MAE"),
+  Raw_GAMLSS = c(rmse_fn(actuals, y_hat_g_raw), mae_fn(actuals, y_hat_g_raw)),
+  Hybrid_GAMLSS = c(rmse_fn(actuals, y_hat_g_hybrid), mae_fn(actuals, y_hat_g_hybrid))
+)
+
+# 4. Print Comparison
+print(results_comp)
+
+# 5. Calculate "Hit Rate" for Dry Days (Occurrence Accuracy)
+# Actual zeros vs predicted zeros
+actual_zeros <- actuals == 0
+predicted_zeros_hybrid <- y_hat_g_hybrid == 0
+
+hit_rate <- mean(actual_zeros == predicted_zeros_hybrid)
+cat("\nDry Day Prediction Hit Rate (Hybrid):", round(hit_rate * 100, 2), "%\n")
+
+## Hit rate for dry days becomes 70% from 28% !!!!!!!!!!!!!!!
+
+total_actual <- sum(test_df_final$acc_precip)
+total_gamlss <- sum(y_hat_g_hybrid)
+total_lm     <- sum(y_hat_l_final)
+
+cat("Actual Total Rain:", total_actual, "\n")
+cat("GAMLSS Predicted Total:", total_gamlss, "\n")
+cat("LM Predicted Total:", total_lm, "\n")
+
+cat("Actual Max Rain:", max(test_df_final$acc_precip), "\n")
+cat("GAMLSS Max Prediction:", max(y_hat_g_hybrid), "\n")
+cat("LM Max Prediction:", max(y_hat_l_final), "\n")
