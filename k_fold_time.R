@@ -100,6 +100,8 @@ for (k in 1:K) {
 
 print(cv_res)
 
+######## IGNORE JUST FOR MODEL TESTING  ##########
+
 # Define a threshold (anything below 0.05mm is effectively dry)
 threshold <- 0.01
 
@@ -174,7 +176,7 @@ print(cv_res[, c("fold", "rmse_gamlss", "rmse_lm", "sd_actual", "nRMSE_gamlss", 
 
 
 
-# 1. Define the final fold indices (Fold 9 is k=9)
+# 1. Define the final fold indices
 k_final <- 8 
 train_end_final  <- k_final * fold_size
 test_start_final <- train_end_final + 1
