@@ -1,7 +1,7 @@
 library(gamlss)
 ###### StepGAIC parameter selection 
 #data
-df <- read.csv("Weather_data.csv")
+df <- read.csv("Weather_data_2.csv")
 df$date <- as.Date(df$date)
 df$time_num <- as.numeric(df$date)
 df$time_index <- seq_len(nrow(df))

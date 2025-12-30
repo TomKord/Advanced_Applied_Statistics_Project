@@ -3,7 +3,7 @@ library(gamlss)
 set.seed(42)  # Keep fold split reproducible
 
 # Load data
-df_all <- read.csv("Weather_data.csv", stringsAsFactors = FALSE)
+df_all <- read.csv("Weather_data_2.csv", stringsAsFactors = FALSE)
 
 # Parse date and remove 2025
 df_all$date <- as.Date(df_all$date)
@@ -29,7 +29,7 @@ df_all <- df_all[order(df_all$time_index), ]
 
 # 2. Define Time-Series Folds
 # We will use 9 folds. Each fold k will train on blocks 1:k and test on k+1
-K <- 8
+K <- 12
 fold_size <- floor(nrow(df_all) / (K + 1))
 
 cv_res <- data.frame()
@@ -48,19 +48,20 @@ for (k in 1:K) {
   # This prevents data leakage.
   # ------------------------------------------------------------
   
-  # GAMLSS Selection
   m_null <- gamlss(acc_precip ~ 1, data = train_df, family = ZAGA, trace = FALSE)
   
-  # 
-  m1 <- stepGAIC(m_null, what = "mu", scope = list(lower = ~1, upper = possible_vars), direction = "both", k = 2, trace = FALSE)
-  m2 <- stepGAIC(m1, what = "sigma", scope = list(lower = ~1, upper = possible_vars), direction = "both", k = 2, trace = FALSE)
-  m3 <- stepGAIC(m2, what = "nu", scope = list(lower = ~1, upper = possible_vars), direction = "both", k = 2, trace = FALSE)
+  # Explicitly define the scope list for mu
+  mu_scope <- list(lower = ~1, upper = possible_vars)
   
+  m1 <- stepGAIC(m_null, what = "mu", scope = mu_scope, direction = "both", k = 2, trace = FALSE)
+  
+  # Note: For sigma and nu, the scope should usually target the same predictors
+  m2 <- stepGAIC(m1, what = "sigma", scope = mu_scope, direction = "both", k = 2, trace = FALSE)
+  m3 <- stepGAIC(m2, what = "nu", scope = mu_scope, direction = "both", k = 2, trace = FALSE)
   
   # Linear Model Selection
   lm_init <- gamlss(acc_precip ~ 1, sigma.formula = ~1, data = train_df, family = NO)
-  lm_cv <- stepGAIC(lm_init, what = "mu", scope = list(lower = ~1, upper = possible_vars), direction = "both", k = 2, trace = FALSE)
-  
+  lm_cv <- stepGAIC(lm_init, what = "mu", scope = mu_scope, direction = "both", k = 2, trace = FALSE)
   # ------------------------------------------------------------
   # Evaluation
   # ------------------------------------------------------------
@@ -96,6 +97,7 @@ for (k in 1:K) {
 }
 
 print(cv_res)
+
 
 ######## IGNORE JUST FOR MODEL TESTING  ##########
 
@@ -150,34 +152,41 @@ get_test_sd <- function(k_val) {
   return(sd(df_all$acc_precip[test_start:test_end], na.rm = TRUE))
 }
 
-cat("SD of Actual Rain in Fold 7:", get_test_sd(7), "\n")
-cat("SD of Actual Rain in Fold 8:", get_test_sd(8), "\n")
-cat("SD of Actual Rain in Fold 9:", get_test_sd(9), "\n")
+cat("SD of Actual Rain in Fold 10:", get_test_sd(10), "\n")
+cat("SD of Actual Rain in Fold 11:", get_test_sd(11), "\n")
+cat("SD of Actual Rain in Fold 12:", get_test_sd(12), "\n")
 
 
 
-# We need to get the SD for each test fold to normalize
-test_sds <- sapply(1:K, function(k) {
+
+# 1. Get the Range (Max - Min) for each test fold
+test_ranges <- sapply(1:K, function(k) {
   test_start <- k * fold_size + 1
   test_end   <- (k + 1) * fold_size
-  sd(df_all$acc_precip[test_start:test_end], na.rm = TRUE)
+  
+  fold_values <- df_all$acc_precip[test_start:test_end]
+  
+  # Calculate Max - Min
+  r <- diff(range(fold_values, na.rm = TRUE))
+  
+  # Safety: return NA or a very small number if range is 0 to avoid division by zero
+  if(r == 0) return(NA) else return(r)
 })
 
-# Calculate Normalized RMSE (nRMSE)
-cv_res$sd_actual <- test_sds
-cv_res$nRMSE_gamlss <- cv_res$rmse_gamlss / cv_res$sd_actual
-cv_res$nRMSE_lm     <- cv_res$rmse_lm / cv_res$sd_actual
+# 2. Calculate Normalized RMSE (nRMSE) using the Range
+cv_res$range_actual <- test_ranges
+cv_res$nRMSE_gamlss <- cv_res$rmse_gamlss / cv_res$range_actual
+cv_res$nRMSE_lm     <- cv_res$rmse_lm / cv_res$range_actual
 
-print(cv_res[, c("fold", "rmse_gamlss", "rmse_lm", "sd_actual", "nRMSE_gamlss", "nRMSE_lm")])
-
-
+# 3. Print results with the new normalization
+print(cv_res[, c("fold", "rmse_gamlss", "rmse_lm", "range_actual", "nRMSE_gamlss", "nRMSE_lm")])
 
 
 # 1. Define the final fold indices
-k_final <- 8 
-train_end_final  <- k_final * fold_size
+k <- 12 
+train_end_final  <- k * fold_size
 test_start_final <- train_end_final + 1
-test_end_final   <- (k_final + 1) * fold_size
+test_end_final   <- (k + 1) * fold_size
 
 test_df_final  <- df_all[test_start_final:test_end_final, ]
 train_df_final <- df_all[1:train_end_final, ]
@@ -269,7 +278,7 @@ upper_95 <- qZAGA(0.95, mu = pa_final$mu, sigma = pa_final$sigma, nu = pa_final$
 
 # 2. Create the Plot
 plot(test_df_final$acc_precip, type = "n", # "n" creates the frame without plotting points yet
-     main = "GAMLSS Risk Assessment (Fold 9)",
+     main = "GAMLSS Risk Assessment (Fold 12)",
      ylab = "Precipitation (mm)", xlab = "Days in Fold",
      ylim = c(0, max(max(test_df_final$acc_precip), max(upper_95))))
 
