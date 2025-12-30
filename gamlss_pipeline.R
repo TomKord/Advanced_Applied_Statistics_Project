@@ -11,7 +11,7 @@ df <- subset(df, df$acc_precip < 15)
 # Find the first row index where the Date is "2023-01-01"
 split_idx <- which(df$date == "2023-01-02")[1]
 
-# Then split using the same logic as above
+ Then split using the same logic as above
 train_df <- df[seq_len(split_idx - 1), ]
 test_df  <- df[split_idx:nrow(df), ]
 
@@ -85,6 +85,12 @@ ggplot(test_df, aes(x = date)) +
 #refit model on full data for cov pen approach
 m3 <- update(m3, data = df)
 #boostrap
+
+
+
+
+###### IMPORTANT: RUN MODEL PREDICTED BY CV HERE #########
+m3 <- zaga_final
 
 # 1. Setup
 B <- 100  # Number of bootstraps (Use >= 200 for publication, 50 for testing)
