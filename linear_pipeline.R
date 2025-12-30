@@ -74,9 +74,14 @@ ggplot(test_df, aes(x = date)) +
 # As per your GAMLSS example, we calculate the penalty on the full dataset structure
 final_lm_full <- update(final_lm, data = df)
 
+
+
+
+###### IMPORTANT: RUN MODEL PREDICTED BY CV HERE #########
+final_lm_full <- lm_final
 # B. Setup Bootstrap
-B <- 100       # Number of bootstraps
-n <- nrow(df)
+B <- 200       # Number of bootstraps
+n <- nrow(train_df_final)
 
 # Matrices to store results
 sim_y_mat <- matrix(NA, nrow = n, ncol = B)
@@ -102,7 +107,7 @@ for(i in 1:B) {
   sim_y_mat[, i] <- y_sim
   
   # --- 2. Refit the Model ---
-  df_sim <- df
+  df_sim <- train_df_final
   df_sim$acc_precip <- y_sim
   
   # Update the model with the new synthetic target variable
@@ -133,7 +138,7 @@ total_optimism <- 2 * sum(cov_penalties)
 # Calculate Training Error (SSE) on the original data
 # We use the raw predictions (even if negative) to be mathematically consistent with LM
 original_predictions <- predict(final_lm_full, type = "response")
-training_se <- sum((df$acc_precip - original_predictions)^2)
+training_se <- sum((train_df_final$acc_precip - original_predictions)^2)
 
 final_prediction_error <- training_se + total_optimism
 

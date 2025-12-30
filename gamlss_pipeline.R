@@ -93,8 +93,8 @@ m3 <- update(m3, data = df)
 m3 <- zaga_final
 
 # 1. Setup
-B <- 100  # Number of bootstraps (Use >= 200 for publication, 50 for testing)
-n <- nrow(df)
+B <- 200  # Number of bootstraps
+n <- nrow(train_df_final)
 #original_predictions <- predict(m3, type = "response")
 
 # Matrices to store results
@@ -123,7 +123,7 @@ for(i in 1:B) {
   # We update the 'data' argument in the call
   # NOTE: gamlss refitting can be tricky with data environments. 
   # We temporarily assign y_sim to the dataframe
-  df_sim <- df
+  df_sim <- train_df_final
   df_sim$acc_precip <- y_sim
   
   # Refit (suppressing trace for cleaner output)
@@ -169,7 +169,7 @@ total_optimism <- 2 * sum(cov_penalties)
 # Calculate Training Error (Squared Error for this example)
 # Formula: Probability of Rain * Average Amount
 original_predictions <- (1- nu_fit)*mu_fit
-training_se <- sum((df$acc_precip - original_predictions)^2)
+training_se <- sum((train_df_final$acc_precip - original_predictions)^2)
 
 # Estimate of True Prediction Error
 final_prediction_error <- training_se + total_optimism
