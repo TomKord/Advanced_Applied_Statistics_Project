@@ -156,7 +156,7 @@ cat("------------------------------------------------\n")
 par(mfrow = c(2, 2))
 
 # This command automatically generates the 4 standard diagnostic plots
-plot(final_lm)
+plot(final_lm_full)
 
 # Reset grid to normal
 par(mfrow = c(1, 1))
@@ -165,7 +165,7 @@ AIC(final_lm)
 #Wormplot
 
 wp(final_lm_full, 
-   xvar = df$mean_relative_hum, 
+   xvar = train_df_final$mean_relative_hum, 
    n.inter = 4, 
    ylim.worm = 1,  # Linear models often have huge errors, so we increase the y-limits
    main = "Worm Plot: Linear Model (Gaussian) on Rainfall")
