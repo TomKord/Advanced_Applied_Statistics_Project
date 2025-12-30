@@ -28,7 +28,7 @@ mae_fn  <- function(y, yhat) mean(abs(y - yhat), na.rm = TRUE)
 df_all <- df_all[order(df_all$time_index), ]
 
 # 2. Define Time-Series Folds
-# We will use 9 folds. Each fold k will train on blocks 1:k and test on k+1
+# We will use 12 folds. Each fold k will train on blocks 1:k and test on k+1
 K <- 12
 fold_size <- floor(nrow(df_all) / (K + 1))
 
@@ -328,8 +328,8 @@ wp(zaga_final,ylim.all = 0.8, main = "Worm Plot: GAMLSS (ZAGA)")
 # Standard lm objects don't have a native wp method, 
 # so we create a dummy gamlss object with a Normal (NO) distribution 
 # using the LM's formula to visualize its residuals properly.
-lm_as_gamlss <- gamlss(formula(lm_final), data = train_df_final, family = NO, trace = FALSE)
-wp(lm_as_gamlss,ylim.all = 0.8, main = "Worm Plot: Linear Model (Normal)")
+#lm_as_gamlss <- gamlss(formula(lm_final), data = train_df_final, family = NO, trace = FALSE)
+wp(lm_final,ylim.all = 0.8, main = "Worm Plot: Linear Model (Normal)")
 
 # Reset plotting layout
 par(mfrow = c(1, 1))
